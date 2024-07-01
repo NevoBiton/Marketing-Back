@@ -6,11 +6,12 @@ const Product = require("../models/product.model");
 const fs = require("fs");
 
 async function getProductsCount(req, res) {
-    const name = req.query.name || "";
+  const {query} = req
+  const productsParams = buildCreiteria(query)
+  
+
     try {
-      const count = await Product.countDocuments({
-        name: { $regex: name, $options: "i" }, // "i" for case-insensitive
-      });
+      const count = await Product.countDocuments(productsParams)
       res.json({ count });
     } catch (err) {
       console.log(
@@ -46,18 +47,38 @@ async function getProductsCount(req, res) {
     const {query} = req
     const productsParams = buildCreiteria(query)
     const page = query.page || 1;
-    const limit = query.limit || 5;
+    const limit = query.limit || 6;
     const pageIndex = (page - 1) * limit || 0
 
     try {
       const products = await Product.find(productsParams).skip(pageIndex).limit(limit)
-      res.json(products);
+      res.status(200).json(products)
       
     } catch (err) {
       console.log("product.controller, getProducts. Error while getting products", err);
       res.status(500).json({ message: err.message });
     }
   }
+
+  async function getUserProducts(req, res) {
+    const { userId } = req.params;
+    const { page = 1, limit = 6 } = req.query;
+
+    try {
+        const productsParams = { user: userId };  // Assuming 'owner' field holds user ID
+
+        const totalProducts = await Product.countDocuments(productsParams);
+        const products = await Product.find(productsParams)
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+
+        res.status(200).json({ total: totalProducts, products });
+    } catch (err) {
+        console.error("Error fetching user products:", err);
+        res.status(500).json({ message: "Server error while fetching products" });
+    }
+}
+
 
   async function getProductById(req, res) {
     const { id } = req.params;
@@ -80,51 +101,26 @@ async function getProductsCount(req, res) {
   }
 
 
-async function deleteProduct(req, res) {
-  const { id } = req.params;
-  try {
-    const deletedProduct = await Product.findByIdAndDelete(id);
+// async function deleteProduct(req, res) {
+//   const { id } = req.params;
+//   try {
+//     const deletedProduct = await Product.findByIdAndDelete(id);
 
-    if (!deletedProduct) {
-      console.log(
-        `product.controller, deleteProduct. Product not found with id: ${id}`
-      );
-      return res.status(404).json({ message: "Product not found" });
-    }
+//     if (!deletedProduct) {
+//       console.log(
+//         `product.controller, deleteProduct. Product not found with id: ${id}`
+//       );
+//       return res.status(404).json({ message: "Product not found" });
+//     }
 
-    res.json({ message: "Product deleted" });
-  } catch (err) {
-    console.log(
-      `product.controller, deleteProduct. Error while deleting product with id: ${id}`
-    );
-    res.status(500).json({ message: err.message });
-  }
-}
-
-async function addProduct(req, res) {
-  const productToAdd = req.body;
-  const newProduct = new Product(productToAdd);
-
-  try {
-    const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
-  } catch (err) {
-    console.log(
-      "product.controller, createProduct. Error while creating product",
-      err
-    );
-
-    if (err.name === "ValidationError") {
-      // Mongoose validation error
-      console.log(`product.controller, createProduct. ${err.message}`);
-      res.status(400).json({ message: err.message });
-    } else {
-      // Other types of errors
-      console.log(`product.controller, createProduct. ${err.message}`);
-      res.status(500).json({ message: "Server error while creating product" });
-    }
-  }
-}
+//     res.json({ message: "Product deleted" });
+//   } catch (err) {
+//     console.log(
+//       `product.controller, deleteProduct. Error while deleting product with id: ${id}`
+//     );
+//     res.status(500).json({ message: err.message });
+//   }
+// }
 
 async function editProduct(req, res) {
   const { id } = req.params;
@@ -171,8 +167,8 @@ async function editProduct(req, res) {
 module.exports = {
     getProducts,
     getProductById,
-    deleteProduct,
-    addProduct,
+    // deleteProduct,
     editProduct,
-    getProductsCount
+    getProductsCount,
+    getUserProducts
   };
